@@ -235,7 +235,18 @@
     const copyBtn = document.getElementById('copyBtn');
     const copyBtnMobile = document.getElementById('copyBtnMobile');
 
+    function track(eventName, params) {
+      if (typeof gtag === 'function') gtag('event', eventName, params);
+    }
+
+    document.querySelectorAll('.chatgptLink').forEach(link => {
+      link.addEventListener('click', () => {
+        track('open_chatgpt', { placement: link.closest('#fixedButtons') ? 'desktop' : 'mobile' });
+      });
+    });
+
     copyBtnMobile?.addEventListener('click', () => {
+      track('copy_prompt', { placement: 'mobile' });
       const text = outputPrompt.textContent;
       navigator.clipboard.writeText(text).then(() => {
         copyBtnMobile.textContent = 'Copied!';
@@ -271,7 +282,11 @@
 
     convertBtn.addEventListener('click', () => {
       const input = document.getElementById('inputPrompt').value.trim();
-      if (!input) return;
+      if (!input) {
+        track('convert_empty');
+        return;
+      }
+      track('convert_prompt', { prompt_length: input.length });
       outputSection.classList.add('hidden');
       document.querySelector('section').appendChild(loadingDiv);
 
@@ -291,6 +306,7 @@
     });
 
     copyBtn.addEventListener('click', () => {
+      track('copy_prompt', { placement: 'desktop' });
       const text = outputPrompt.textContent;
       navigator.clipboard.writeText(text).then(() => {
         copyBtn.textContent = 'Copied!';
