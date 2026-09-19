@@ -22,6 +22,18 @@ Try it live 👉 [cnatgpt.com](https://cnatgpt.com)
 
 ---
 
+## 📱 Installable app (PWA)
+
+CnatGPT can be installed on the phone's home screen and works offline (generating and copying prompts; opening ChatGPT needs a connection).
+
+- `manifest.webmanifest` — app name, icons and colors.
+- `sw.js` — service worker. The page is fetched network-first; CSS, fonts and icons are cache-first.
+- **When you change any file listed in `PRECACHE` inside `sw.js` (CSS, fonts, icons), bump `CACHE_VERSION`** so installed apps pick up the new version. Changes to `index.html` alone don't need a bump.
+- Icon sources are `public/icons/icon.svg` and `public/icons/icon-maskable.svg`.
+- Service workers need `http://localhost` or HTTPS, so test locally with `python3 -m http.server` instead of opening the file directly.
+
+---
+
 ## 🤝 Contributing
 
 We welcome contributors of all experience levels! Whether you're a developer, designer, or just someone with great ideas, your help is appreciated.

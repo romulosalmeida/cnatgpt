@@ -37,14 +37,54 @@
     content="Free tool to convert unclear instructions into optimized prompts for ChatGPT and other AI tools.">
   <meta name="twitter:image" content="https://www.cnatgpt.com/assets/social-preview.png">
 
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <meta name="theme-color" content="#2563eb">
+  <link rel="icon" href="./public/icons/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="./public/icons/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="./public/icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="CnatGPT">
+
+  <link href="./public/css/tailwind.min.css" rel="stylesheet">
 
   <style>
+    /* Inter is a variable font: one file per subset covers weights 400-700 */
+    @font-face {
+      font-family: 'Inter';
+      font-style: normal;
+      font-weight: 400 700;
+      font-display: swap;
+      src: url(./public/fonts/inter-latin-ext.woff2) format('woff2');
+      unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+    }
+
+    @font-face {
+      font-family: 'Inter';
+      font-style: normal;
+      font-weight: 400 700;
+      font-display: swap;
+      src: url(./public/fonts/inter-latin.woff2) format('woff2');
+      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+    }
+
     body {
       font-family: 'Inter', sans-serif;
+    }
+
+    /* 🔹 Installed app: the user already knows this is CnatGPT */
+    @media (display-mode: standalone) {
+      #redirect-banner {
+        display: none;
+      }
+    }
+
+    .standalone #redirect-banner {
+      display: none;
+    }
+
+    .chatgptLink[aria-disabled="true"] {
+      opacity: 0.5;
+      pointer-events: none;
     }
 
     /* 🔹 Top sticky banner */
@@ -175,6 +215,7 @@
             <a href="https://chat.openai.com" target="_blank"
               class="chatgptLink bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-10 rounded-md">ChatGPT</a>
           </div>
+          <p class="offlineNotice hidden w-full text-sm text-gray-600 dark:text-gray-300">You're offline — copy the prompt and paste it later.</p>
         </div>
 
         <div
@@ -185,6 +226,14 @@
           <div class="flex flex-wrap justify-center gap-2">
             <a href="https://chat.openai.com" target="_blank"
               class="chatgptLink bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-10 rounded-md">ChatGPT</a>
+            <button id="installBtn"
+              class="hidden border border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400 font-semibold py-3 px-6 rounded-md">Install app</button>
+          </div>
+          <p class="offlineNotice hidden text-sm text-gray-600 dark:text-gray-300">You're offline — copy the prompt and paste it later.</p>
+          <div id="iosInstallHint" role="dialog"
+            class="hidden absolute bottom-full left-4 right-4 mb-2 bg-gray-800 text-white text-sm rounded-md shadow-lg px-4 py-3 text-center">
+            Tap <b>Share</b> then <b>Add to Home Screen</b>.
+            <span class="block mt-1 text-xs text-gray-300">Tap to close</span>
           </div>
         </div>
       </div>
@@ -235,8 +284,57 @@
     const copyBtn = document.getElementById('copyBtn');
     const copyBtnMobile = document.getElementById('copyBtnMobile');
 
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+    if (isStandalone) document.documentElement.classList.add('standalone');
+
     function track(eventName, params) {
-      if (typeof gtag === 'function') gtag('event', eventName, params);
+      if (typeof gtag === 'function') gtag('event', eventName, { ...params, display_mode: isStandalone ? 'standalone' : 'browser' });
+    }
+
+    // 🔹 Offline: prompt generation is local, only "open in ChatGPT" needs the network
+    function updateOnlineState() {
+      const offline = !navigator.onLine;
+      document.querySelectorAll('.chatgptLink').forEach(link => link.setAttribute('aria-disabled', offline));
+      document.querySelectorAll('.offlineNotice').forEach(notice => notice.classList.toggle('hidden', !offline));
+    }
+    window.addEventListener('online', updateOnlineState);
+    window.addEventListener('offline', updateOnlineState);
+    updateOnlineState();
+
+    // 🔹 Install app (mobile only, hidden once installed)
+    const installBtn = document.getElementById('installBtn');
+    const iosInstallHint = document.getElementById('iosInstallHint');
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    let deferredInstallPrompt = null;
+
+    if (!isStandalone && isIOS) installBtn.classList.remove('hidden');
+
+    window.addEventListener('beforeinstallprompt', event => {
+      event.preventDefault();
+      deferredInstallPrompt = event;
+      if (!isStandalone) installBtn.classList.remove('hidden');
+    });
+
+    installBtn.addEventListener('click', () => {
+      track('pwa_install_click', { platform: isIOS ? 'ios' : 'android' });
+      if (deferredInstallPrompt) {
+        deferredInstallPrompt.prompt();
+        deferredInstallPrompt = null;
+        installBtn.classList.add('hidden');
+      } else if (isIOS) {
+        iosInstallHint.classList.remove('hidden');
+      }
+    });
+
+    iosInstallHint.addEventListener('click', () => iosInstallHint.classList.add('hidden'));
+
+    window.addEventListener('appinstalled', () => {
+      track('pwa_install');
+      installBtn.classList.add('hidden');
+    });
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
     }
 
     document.querySelectorAll('.chatgptLink').forEach(link => {
